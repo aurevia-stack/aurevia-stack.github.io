@@ -43,7 +43,7 @@
 
   /* ── Navbar solidify ────────────────────────────────────────── */
   var nav = document.getElementById('nav');
-  function onScroll() { nav.classList.toggle('is-scrolled', window.scrollY > 40); }
+  function onScroll() { if (nav) nav.classList.toggle('is-scrolled', window.scrollY > 40); }
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
 
@@ -63,9 +63,29 @@
       burger.setAttribute('aria-expanded', String(open));
       burger.setAttribute('aria-label', open ? 'Cerrar menú' : 'Abrir menú');
       document.body.style.overflow = open ? 'hidden' : '';
+      if (open) {
+        var first = menu.querySelector('a');
+        if (first) first.focus();
+      } else {
+        burger.focus();
+      }
     });
     menu.querySelectorAll('a').forEach(function (a) { a.addEventListener('click', closeMenu); });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) closeMenu(); });
+    document.addEventListener('keydown', function (e) {
+      if (menu.hidden) return;
+      if (e.key === 'Escape') { closeMenu(); burger.focus(); return; }
+      if (e.key === 'Tab') {
+        // Mantener el foco dentro del overlay
+        var focusables = menu.querySelectorAll('a');
+        var first = focusables[0], last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    });
+    var mqMenu = window.matchMedia('(min-width: 768px)');
+    var onMqMenu = function () { if (mqMenu.matches && !menu.hidden) closeMenu(); };
+    if (mqMenu.addEventListener) mqMenu.addEventListener('change', onMqMenu);
+    else if (mqMenu.addListener) mqMenu.addListener(onMqMenu);
   }
 
   /* ── Scroll reveals + líneas ────────────────────────────────── */
@@ -156,7 +176,10 @@
       d.hidden = i !== idx;
       d.classList.toggle('anim-in', i === idx);
     });
-    rows.forEach(function (r, i) { r.classList.toggle('is-active', i === idx); });
+    rows.forEach(function (r, i) {
+      r.classList.toggle('is-active', i === idx);
+      r.setAttribute('aria-expanded', String(i === idx));
+    });
   }
 
   rows.forEach(function (row, i) {
@@ -180,7 +203,22 @@
       }
     });
   });
-  if (rows[0]) rows[0].classList.add('is-active');
+  if (rows[0] && mqDesktop.matches) {
+    rows[0].classList.add('is-active');
+    rows[0].setAttribute('aria-expanded', 'true');
+  }
+
+  // Al cruzar el breakpoint, limpiar el estado del modo anterior
+  function onAreaModeChange() {
+    document.querySelectorAll('.area-item.is-open').forEach(function (it) { it.classList.remove('is-open'); });
+    rows.forEach(function (r, i) {
+      var active = mqDesktop.matches && i === activeArea;
+      r.classList.toggle('is-active', active);
+      r.setAttribute('aria-expanded', String(active));
+    });
+  }
+  if (mqDesktop.addEventListener) mqDesktop.addEventListener('change', onAreaModeChange);
+  else if (mqDesktop.addListener) mqDesktop.addListener(onAreaModeChange);
 
   /* ── FAQ (un ítem a la vez) ─────────────────────────────────── */
   document.querySelectorAll('.faq-q').forEach(function (q) {
@@ -219,12 +257,14 @@
   }
 
   if (form) {
+    // Con JS activo tomamos el control de la validación; sin JS rige la nativa del navegador
+    form.setAttribute('novalidate', 'novalidate');
     form.addEventListener('submit', function (ev) {
       ev.preventDefault();
       errBox.hidden = true;
       ['lr-f-nombre', 'lr-f-fono', 'lr-f-mail'].forEach(function (id) {
         var el = document.getElementById(id);
-        if (el) el.classList.remove('f-invalid');
+        if (el) { el.classList.remove('f-invalid'); el.removeAttribute('aria-invalid'); }
       });
 
       var honey = form.querySelector('.hp-field');
@@ -236,11 +276,17 @@
       var area = fieldVal('lr-f-area');
       var msg = fieldVal('lr-f-msg');
 
+      function markInvalid(id) {
+        var el = document.getElementById(id);
+        el.classList.add('f-invalid');
+        el.setAttribute('aria-invalid', 'true');
+        el.setAttribute('aria-describedby', 'form-error');
+      }
       var errors = [];
-      if (!nombre) { errors.push('tu nombre'); document.getElementById('lr-f-nombre').classList.add('f-invalid'); }
+      if (!nombre) { errors.push('tu nombre'); markInvalid('lr-f-nombre'); }
       var digits = fono.replace(/\D/g, '');
-      if (!fono || digits.length < 8) { errors.push('un número de WhatsApp válido'); document.getElementById('lr-f-fono').classList.add('f-invalid'); }
-      if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { errors.push('un email válido (o déjalo vacío)'); document.getElementById('lr-f-mail').classList.add('f-invalid'); }
+      if (!fono || digits.length < 8) { errors.push('un número de WhatsApp válido'); markInvalid('lr-f-fono'); }
+      if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { errors.push('un email válido (o déjalo vacío)'); markInvalid('lr-f-mail'); }
 
       if (errors.length) {
         errBox.textContent = 'Para poder ayudarte necesitamos ' + errors.join(' y ') + '.';
@@ -281,6 +327,13 @@
         submitBtn.classList.add('is-success');
         noteBox.textContent = 'Recibimos tu consulta y abrimos WhatsApp con tu mensaje listo. Te responderemos a la brevedad.';
         form.querySelectorAll('input:not([type=hidden]):not(.hp-field), textarea').forEach(function (el) { el.value = ''; });
+        var areaSel = document.getElementById('lr-f-area');
+        if (areaSel) areaSel.selectedIndex = 0;
+        setTimeout(function () {
+          submitBtn.disabled = false;
+          submitBtn.classList.remove('is-success');
+          submitBtn.textContent = 'ENVIAR CONSULTA →';
+        }, 6000);
       }).catch(function () {
         submitBtn.disabled = false;
         submitBtn.textContent = 'ENVIAR CONSULTA →';

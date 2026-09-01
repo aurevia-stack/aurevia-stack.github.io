@@ -1,4 +1,4 @@
-User-agent: *
+﻿User-agent: *
 Allow: /
 
-Sitemap: https://lr-abogados.vercel.app/sitemap.xml
+Sitemap: https://aurevia-stack.github.io/sitemap.xml
