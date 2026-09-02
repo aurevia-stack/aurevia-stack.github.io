@@ -1,21 +1,21 @@
-// Build de Vercel: arma /public con los archivos estáticos del repo y
-// descarga las imágenes (binarios) desde el espejo de GitHub Pages,
-// para que el deploy por MCP solo necesite enviar archivos de texto.
-import { mkdir, copyFile, writeFile, cp } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+// Build de Vercel: arma /public descargando el sitio estático desde el
+// espejo de GitHub Pages (mismo repositorio, ya desplegado). Así el deploy
+// por MCP solo envía archivos de texto pequeños. Para publicar cambios:
+// push al espejo primero, luego redeploy en Vercel.
+import { mkdir, writeFile } from 'node:fs/promises';
 
 const MIRROR = 'https://aurevia-stack.github.io';
 const OUT = 'public';
 
-const textCopies = [
+const files = [
   'index.html',
   '404.html',
   'gracias.html',
   'robots.txt',
   'sitemap.xml',
-];
-
-const binaries = [
+  'assets/css/main.css',
+  'assets/js/main.js',
+  'assets/img/favicon.svg',
   'assets/img/team/rainier-daroch.jpg',
   'assets/img/team/lucas-orellana.jpg',
   'assets/img/team/marcelo-avila.jpg',
@@ -28,20 +28,19 @@ await mkdir(`${OUT}/assets/img/team`, { recursive: true });
 await mkdir(`${OUT}/assets/css`, { recursive: true });
 await mkdir(`${OUT}/assets/js`, { recursive: true });
 
-for (const f of textCopies) {
-  if (existsSync(f)) await copyFile(f, `${OUT}/${f}`);
-}
-await cp('assets/css', `${OUT}/assets/css`, { recursive: true });
-await cp('assets/js', `${OUT}/assets/js`, { recursive: true });
-await copyFile('assets/img/favicon.svg', `${OUT}/assets/img/favicon.svg`);
-
-for (const path of binaries) {
-  const url = `${MIRROR}/${path}`;
+for (const path of files) {
+  const url = `${MIRROR}/${path}?build=${Date.now()}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`No se pudo descargar ${url}: HTTP ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length < 100) throw new Error(`Descarga sospechosamente pequeña: ${url}`);
+  if (buf.length < 60) throw new Error(`Descarga sospechosamente pequeña: ${url} (${buf.length}B)`);
   await writeFile(`${OUT}/${path}`, buf);
   console.log(`ok ${path} (${buf.length} bytes)`);
 }
-console.log('public/ listo');
+
+// Verificación: el index descargado debe ser la landing con el canonical correcto
+const idx = (await import('node:fs')).readFileSync(`${OUT}/index.html`, 'utf8');
+if (!idx.includes('lr-abogados.vercel.app') || !idx.includes('EL DERECHO,')) {
+  throw new Error('index.html descargado no es la versión esperada (canonical o contenido incorrecto)');
+}
+console.log('public/ listo y verificado');
