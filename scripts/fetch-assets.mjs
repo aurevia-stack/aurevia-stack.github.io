@@ -40,7 +40,7 @@ for (const path of files) {
 
 // Verificación: el index descargado debe ser la landing con el canonical correcto
 const idx = (await import('node:fs')).readFileSync(`${OUT}/index.html`, 'utf8');
-if (!idx.includes('aureviasystem.cl') || !idx.includes('EL DERECHO,')) {
+if (!idx.includes('lr-abogados.pages.dev') || !idx.includes('EL DERECHO,')) {
   throw new Error('index.html descargado no es la versión esperada (canonical o contenido incorrecto)');
 }
 console.log('public/ listo y verificado');
