@@ -1,0 +1,7 @@
+{
+  "name": "lr-abogados-landing",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/fetch-assets.mjs"
+  }
+}
